@@ -24,8 +24,11 @@
   --spotlight-color: rgba(96, 165, 250, 0.2);
 }
 
+html { scroll-behavior: auto; }
 html.lenis, html.lenis body { height: auto; }
 .lenis.lenis-smooth { scroll-behavior: auto !important; }
+.lenis.lenis-smooth [data-lenis-prevent] { overscroll-behavior: contain; }
+.lenis.lenis-stopped { overflow: hidden; }
 body { @apply bg-soft overflow-x-hidden text-ink font-sans antialiased transition-colors duration-200 dark:tracking-[0.005em]; }
 :focus-visible { outline: 3px solid rgb(var(--c-mint)); outline-offset: 3px; }
 @keyframes shimmer {
@@ -36,24 +39,38 @@ body { @apply bg-soft overflow-x-hidden text-ink font-sans antialiased transitio
   0% { transform: translate3d(0, 0, 0); }
   100% { transform: translate3d(-50%, 0, 0); }
 }
-@keyframes contact-pulse {
-  0%, 100% {
-    box-shadow: 0 0 0 0 rgb(var(--c-mint) / 0.3);
+@keyframes contact-pulse-ring {
+  0% {
+    transform: scale(0.99);
+    opacity: 0.42;
   }
-  55% {
-    box-shadow: 0 0 0 8px rgb(var(--c-mint) / 0);
+  65%, 100% {
+    transform: scale(1.06, 1.24);
+    opacity: 0;
   }
 }
 .contact-pulse {
-  animation: contact-pulse 2.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  position: relative;
 }
-.contact-pulse:hover,
-.contact-pulse:focus-visible {
+.contact-pulse::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  border: 2px solid rgb(var(--c-mint));
+  pointer-events: none;
+  opacity: 0;
+  animation: contact-pulse-ring 2.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  animation-delay: var(--pulse-delay, 0s);
+}
+.contact-pulse:hover::after,
+.contact-pulse:focus-visible::after {
   animation-play-state: paused;
+  opacity: 0;
 }
-@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 
-.rv { opacity: 0; transform: translate3d(var(--rx, 0), var(--ry, 32px), 0); transition: opacity .7s ease, transform .8s cubic-bezier(.22, 1, .36, 1); transition-delay: var(--d, 0ms); }
+.rv { opacity: 0; transform: translate3d(var(--rx, 0), var(--ry, 28px), 0); transition: opacity .55s ease, transform .65s cubic-bezier(.22, 1, .36, 1); transition-delay: var(--d, 0ms); }
 .rv.in { opacity: 1; transform: none; }
 @media (prefers-reduced-motion: reduce) { .rv { opacity: 1; transform: none; } }
 

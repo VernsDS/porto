@@ -4,36 +4,61 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { ArrowDown } from 'lucide-react'
 import { SplitText } from './reactbits'
 
-// Parallax berlapis ala 21st.dev (GSAP ScrollTrigger). Lapisan jauh turun lebih banyak saat scroll.
-// Smooth scroll (Lenis) diatur di App.jsx dan sudah tersambung ke ScrollTrigger.
+gsap.registerPlugin(ScrollTrigger)
+
+// Parallax berlapis khas halaman awal memakai GSAP ScrollTrigger (sinkron dengan Lenis smooth scroll).
 const LAYERS = [
   { layer: '1', yPercent: 70 },
-  { layer: '2', yPercent: 55 },
-  { layer: '3', yPercent: 40 },
+  { layer: '2', yPercent: 45 },
+  { layer: '3', yPercent: 30 },
   { layer: '4', yPercent: 10 },
 ]
-const svgProps = { viewBox: '0 0 1440 900', preserveAspectRatio: 'xMidYMax slice', className: 'absolute inset-0 h-full w-full', 'aria-hidden': true }
+const svgProps = {
+  viewBox: '0 0 1440 900',
+  preserveAspectRatio: 'xMidYMax slice',
+  className: 'absolute inset-0 h-full w-full',
+  'aria-hidden': true,
+}
 
 export default function ParallaxHero({ ready = true, onScrollDown }) {
-  const root = useRef(null)
+  const rootRef = useRef(null)
+
   useEffect(() => {
-    gsap.registerPlugin(ScrollTrigger)
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const el = rootRef.current
+    if (!el) return
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+
     const ctx = gsap.context(() => {
-      const tl = gsap.timeline({ scrollTrigger: { trigger: '[data-parallax-layers]', start: '0% 0%', end: '100% 0%', scrub: 0 } })
-      LAYERS.forEach((l, i) => tl.to(`[data-parallax-layer="${l.layer}"]`, { yPercent: l.yPercent, ease: 'none' }, i === 0 ? undefined : '<'))
-    }, root)
+      const tl = gsap.timeline({
+        scrollTrigger: {
+          trigger: el,
+          start: 'top top',
+          end: 'bottom top',
+          scrub: true,
+          invalidateOnRefresh: true,
+        },
+      })
+
+      LAYERS.forEach(({ layer, yPercent }) => {
+        tl.to(
+          el.querySelectorAll(`[data-parallax-layer="${layer}"]`),
+          { yPercent, ease: 'none', force3D: true },
+          0
+        )
+      })
+    }, rootRef)
+
     return () => ctx.revert()
   }, [])
 
   return (
     <section
-      ref={root}
+      ref={rootRef}
       className="relative h-[100svh] min-h-[560px] overflow-hidden bg-gradient-to-b from-[#a5c8f7] to-soft transition-colors duration-300 dark:from-[#0c1e45] dark:to-soft"
     >
-      <div data-parallax-layers className="absolute inset-0">
+      <div className="absolute inset-0">
         {/* 1: awan + bintang halus di mode gelap */}
-        <div data-parallax-layer="1" className="absolute inset-0 will-change-transform">
+        <div data-parallax-layer="1" className="absolute inset-0">
           <svg
             {...svgProps}
             className="absolute inset-0 h-full w-full fill-[#eaf2ff] opacity-0 transition-opacity duration-300 dark:opacity-70"
@@ -59,7 +84,7 @@ export default function ParallaxHero({ ready = true, onScrollDown }) {
           </svg>
         </div>
         {/* 2: bukit jauh */}
-        <div data-parallax-layer="2" className="will-change-transform absolute inset-0">
+        <div data-parallax-layer="2" className="absolute inset-0">
           <svg {...svgProps}>
             <path
               d="M0 560 C240 440 480 620 720 520 S1200 430 1440 540 V900 H0Z"
@@ -68,14 +93,14 @@ export default function ParallaxHero({ ready = true, onScrollDown }) {
           </svg>
         </div>
         {/* 3: judul di tengah */}
-        <div data-parallax-layer="3" className="will-change-transform absolute inset-0 flex flex-col items-center justify-center px-4 pb-24 text-center">
+        <div data-parallax-layer="3" className="absolute inset-0 flex flex-col items-center justify-center px-4 pb-24 text-center">
           <h1 className="font-display text-[clamp(5.5rem,24vw,17rem)] font-extrabold leading-none text-ink">
             <SplitText text="Verns" ready={ready} />
           </h1>
           <p className="mt-2 font-display text-xl font-medium text-ink/80 sm:text-2xl">Web portofolio ataa</p>
         </div>
         {/* 4: bukit depan */}
-        <div data-parallax-layer="4" className="will-change-transform absolute inset-0">
+        <div data-parallax-layer="4" className="absolute inset-0">
           <svg {...svgProps}>
             <path
               d="M0 730 C300 640 540 780 820 710 S1250 650 1440 730 V900 H0Z"

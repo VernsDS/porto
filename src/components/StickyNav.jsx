@@ -34,7 +34,7 @@ export default function StickyNav({
     <header
       aria-hidden={!visible}
       className={cn(
-        'fixed inset-x-0 top-0 z-50 border-b-2 border-ink/15 bg-panel/85 backdrop-blur-md transition-all duration-200 ease-out will-change-transform',
+        'fixed inset-x-0 top-0 z-50 border-b-2 border-ink/15 bg-panel/95 md:bg-panel/85 md:backdrop-blur-sm transition-all duration-200 ease-out',
         visible ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'
       )}
     >

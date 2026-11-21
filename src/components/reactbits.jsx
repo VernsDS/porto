@@ -61,12 +61,29 @@ export function SplitText({ text, className, ready = true }) {
   )
 }
 
-// Marquee mulus tanpa patahan gap di sambungan & tetap penuh di monitor ultrawide.
+// Marquee mulus tanpa patahan gap di sambungan & otomatis berhenti saat di luar layar agar hemat GPU.
 export function Marquee({ items }) {
+  const wrapRef = useRef(null)
+  const [inView, setInView] = useState(true)
+
+  useEffect(() => {
+    const el = wrapRef.current
+    if (!el || typeof IntersectionObserver === 'undefined') return
+    const observer = new IntersectionObserver(
+      ([entry]) => setInView(entry.isIntersecting),
+      { rootMargin: '100px 0px' }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
   const half = [...items, ...items]
   return (
-    <div className="overflow-hidden border-y-2 border-ink/15 py-4" aria-hidden="true">
-      <div className="flex w-max animate-[marquee_34s_linear_infinite] will-change-transform font-display text-3xl font-extrabold text-ink/20">
+    <div ref={wrapRef} className="overflow-hidden border-y-2 border-ink/15 py-4" aria-hidden="true">
+      <div
+        className="flex w-max animate-[marquee_34s_linear_infinite] font-display text-3xl font-extrabold text-ink/20"
+        style={{ animationPlayState: inView ? 'running' : 'paused' }}
+      >
         {[0, 1].map((groupIdx) => (
           <div key={groupIdx} className="flex shrink-0 items-center gap-10 pr-10">
             {half.map((t, i) => (

@@ -58,7 +58,7 @@ export function ProfilePhotoCard({
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       className={cn(
-        'group relative overflow-hidden rounded-2xl border-[3px] border-ink/80 bg-panel/95 p-3 shadow-[6px_6px_0_rgba(12,27,61,0.14)] dark:shadow-[6px_6px_0_rgba(0,0,0,0.45)] transition-transform duration-200 ease-out will-change-transform',
+        'group relative overflow-hidden rounded-2xl border-[3px] border-ink/80 bg-panel/95 p-3 shadow-[6px_6px_0_rgba(12,27,61,0.14)] dark:shadow-[6px_6px_0_rgba(0,0,0,0.45)] transition-transform duration-200 ease-out',
         className
       )}
     >
@@ -78,6 +78,7 @@ export function ProfilePhotoCard({
             alt={alt}
             referrerPolicy="no-referrer"
             loading="lazy"
+            decoding="async"
             onError={() => setImgError(true)}
             className={cn(
               'h-full w-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]',
@@ -92,11 +93,14 @@ export function ProfilePhotoCard({
         )}
       </div>
 
-      <figcaption className="mt-3 flex items-baseline justify-between gap-3 px-1 pb-0.5">
-        <span className="font-display text-lg font-extrabold tracking-tight text-ink">
-          {name} <span className="font-medium text-ink/55">· {alias}</span>
+      <figcaption className="mt-3 flex flex-col gap-0.5 px-1 pb-0.5">
+        <span className="font-display text-lg font-extrabold leading-snug tracking-tight text-ink">
+          {name}
         </span>
-        <span className="text-xs font-medium text-ink/60 whitespace-nowrap">{meta}</span>
+        <span className="flex flex-wrap items-center justify-between gap-x-2 text-xs font-medium text-ink/65">
+          <span>{alias}</span>
+          <span className="whitespace-nowrap text-ink/55">{meta}</span>
+        </span>
       </figcaption>
     </figure>
   )
@@ -122,6 +126,7 @@ export function ProfileAvatar({ src, alt = 'Verns', imgClassName = 'object-[50%_
           src={src}
           alt={alt}
           referrerPolicy="no-referrer"
+          decoding="async"
           onError={() => setImgError(true)}
           className={cn('h-full w-full object-cover', imgClassName)}
         />

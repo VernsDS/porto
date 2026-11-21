@@ -256,9 +256,10 @@ export default function App() {
   const [projects, setProjects] = useState(CURATED_PROJECTS)
   const [activeSection, setActiveSection] = useState('pengantar')
   const [showStickyNav, setShowStickyNav] = useState(false)
-  const [sceneReady, setSceneReady] = useState(false)
-  const [projectsReady, setProjectsReady] = useState(false)
   const [fontsReady, setFontsReady] = useState(false)
+  const [imagesReady, setImagesReady] = useState(false)
+  const [projectsReady, setProjectsReady] = useState(false)
+  const [sceneReady, setSceneReady] = useState(false)
   const [forceReady, setForceReady] = useState(false)
   const lenisRef = useRef(null)
   const copyTimerRef = useRef(null)
@@ -268,7 +269,22 @@ export default function App() {
   const isDark = theme === 'dark'
   const currentYear = Math.max(2026, new Date().getFullYear())
   const tahun = Math.max(1, currentYear - MULAI)
-  const appReady = (sceneReady && projectsReady && fontsReady) || forceReady
+  const appReady = (fontsReady && imagesReady && projectsReady && sceneReady) || forceReady
+
+  const loadProgress = appReady
+    ? 100
+    : (fontsReady ? 20 : 6) +
+      (imagesReady ? 20 : 0) +
+      (projectsReady ? 25 : 0) +
+      (sceneReady ? 35 : 0)
+
+  const loadingLabel = appReady
+    ? 'Semua aset siap!'
+    : !fontsReady || !imagesReady
+      ? 'Memuat font & aset visual…'
+      : !projectsReady
+        ? 'Menyinkronkan proyek terbaru…'
+        : 'Memuat model 3D interaktif…'
 
   // Sinkronkan kelas .dark, penyimpanan lokal, dan warna status bar browser
   useEffect(() => {
@@ -293,17 +309,58 @@ export default function App() {
     setSceneReady(true)
   }, [])
 
-  // Batas waktu maksimal preloader (4.5 detik) agar tidak nyangkut jika koneksi lambat
+  // Tunggu font, foto profil (preload + decode), dan window load; fallback aman 12 detik jika jaringan terblokir
   useEffect(() => {
-    const fallbackTimer = setTimeout(() => setForceReady(true), 4500)
+    let active = true
+    const fallbackTimer = setTimeout(() => {
+      if (active) setForceReady(true)
+    }, 12000)
 
     if (document.fonts?.ready) {
-      document.fonts.ready.then(() => setFontsReady(true)).catch(() => setFontsReady(true))
+      document.fonts.ready
+        .then(() => {
+          if (active) setFontsReady(true)
+        })
+        .catch(() => {
+          if (active) setFontsReady(true)
+        })
     } else {
       setFontsReady(true)
     }
 
-    return () => clearTimeout(fallbackTimer)
+    const preloadProfileImage = new Promise((resolve) => {
+      const img = new Image()
+      img.onload = () => {
+        if (typeof img.decode === 'function') {
+          img.decode().then(resolve).catch(resolve)
+        } else {
+          resolve()
+        }
+      }
+      img.onerror = resolve
+      img.src = FOTO_PROFIL
+    })
+
+    const waitWindowLoad = new Promise((resolve) => {
+      if (document.readyState === 'complete') {
+        resolve()
+        return
+      }
+      const onLoad = () => {
+        window.removeEventListener('load', onLoad)
+        resolve()
+      }
+      window.addEventListener('load', onLoad, { once: true })
+    })
+
+    Promise.all([preloadProfileImage, waitWindowLoad]).then(() => {
+      if (active) setImagesReady(true)
+    })
+
+    return () => {
+      active = false
+      clearTimeout(fallbackTimer)
+    }
   }, [])
 
   // Auto-sync public repository dari GitHub API + gabungkan dengan katalog kurasi
@@ -401,20 +458,27 @@ export default function App() {
     })
   }, [evaluateScrollSpy])
 
-  // Inisialisasi Lenis + GSAP ScrollTrigger + sinkronisasi Scroll Spy
+  // Smooth scroll Lenis yang mulus + GSAP ScrollTrigger + sinkronisasi Scroll Spy
   useEffect(() => {
     gsap.registerPlugin(ScrollTrigger)
-    const lenis = new Lenis({ lerp: 0.1 })
-    lenisRef.current = lenis
+    const prefersReduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
-    lenis.on('scroll', () => {
-      ScrollTrigger.update()
-      scheduleScrollSpy()
-    })
+    let lenis = null
+    let tick = null
 
-    const tick = (t) => lenis.raf(t * 1000)
-    gsap.ticker.add(tick)
-    gsap.ticker.lagSmoothing(0)
+    if (!prefersReduced) {
+      lenis = new Lenis({ lerp: 0.11, smoothWheel: true })
+      lenisRef.current = lenis
+
+      lenis.on('scroll', () => {
+        ScrollTrigger.update()
+        scheduleScrollSpy()
+      })
+
+      tick = (t) => lenis.raf(t * 1000)
+      gsap.ticker.add(tick)
+      gsap.ticker.lagSmoothing(0)
+    }
 
     window.addEventListener('scroll', scheduleScrollSpy, { passive: true })
     window.addEventListener('resize', scheduleScrollSpy, { passive: true })
@@ -427,13 +491,13 @@ export default function App() {
         cancelAnimationFrame(spyRafRef.current)
         spyRafRef.current = 0
       }
-      gsap.ticker.remove(tick)
-      lenis.destroy()
+      if (tick) gsap.ticker.remove(tick)
+      if (lenis) lenis.destroy()
       lenisRef.current = null
     }
   }, [evaluateScrollSpy, scheduleScrollSpy])
 
-  // Kunci scroll saat preloader masih aktif, lalu refresh posisi GSAP setelah siap
+  // Kunci scroll saat seluruh aset masih dimuat, lalu aktifkan Lenis & refresh posisi GSAP setelah siap
   useEffect(() => {
     if (!appReady) {
       document.body.style.overflow = 'hidden'
@@ -443,13 +507,14 @@ export default function App() {
       lenisRef.current?.start()
       requestAnimationFrame(() => {
         ScrollTrigger.refresh()
+        evaluateScrollSpy()
       })
     }
 
     return () => {
       document.body.style.overflow = ''
     }
-  }, [appReady])
+  }, [appReady, evaluateScrollSpy])
 
   useEffect(() => {
     if (!appReady) return
@@ -500,7 +565,7 @@ export default function App() {
         tl.fromTo(
           step,
           { opacity: 0.15, y: 36 },
-          { opacity: 1, y: 0, ease: 'power2.out', duration: 0.42 },
+          { opacity: 1, y: 0, ease: 'power2.out', duration: 0.42, force3D: true },
           startAt
         )
         if (bars[idx]) {
@@ -536,7 +601,8 @@ export default function App() {
     if (lenisRef.current && !prefersReduced) {
       lenisRef.current.scrollTo(target, { offset: -72, duration: 1.0 })
     } else {
-      target.scrollIntoView({ behavior: prefersReduced ? 'auto' : 'smooth' })
+      const targetTop = Math.max(0, target.getBoundingClientRect().top + window.scrollY - 72)
+      window.scrollTo({ top: targetTop, behavior: prefersReduced ? 'auto' : 'smooth' })
     }
   }, [])
 
@@ -577,7 +643,7 @@ export default function App() {
 
   return (
     <>
-      <Preloader ready={appReady} />
+      <Preloader ready={appReady} progress={loadProgress} label={loadingLabel} />
       <StickyNav
         sections={NAV_SECTIONS}
         activeSection={activeSection}
@@ -594,7 +660,7 @@ export default function App() {
         aria-hidden={showStickyNav}
         aria-pressed={isDark}
         aria-label={isDark ? 'Ganti ke mode terang' : 'Ganti ke mode gelap'}
-        className={`fixed right-4 top-4 z-40 inline-flex h-11 items-center gap-2 rounded-xl border-2 border-ink/25 bg-panel/85 px-3.5 text-sm font-bold text-ink shadow-sm backdrop-blur-md transition-all duration-200 hover:border-mint hover:text-mint active:translate-y-0.5 whitespace-nowrap shrink-0 ${
+        className={`fixed right-4 top-4 z-40 inline-flex h-11 items-center gap-2 rounded-xl border-2 border-ink/25 bg-panel/95 md:bg-panel/85 md:backdrop-blur-sm px-3.5 text-sm font-bold text-ink shadow-sm transition-all duration-200 hover:border-mint hover:text-mint active:translate-y-0.5 whitespace-nowrap shrink-0 ${
           showStickyNav ? 'pointer-events-none -translate-y-2 opacity-0' : 'translate-y-0 opacity-100'
         }`}
       >
@@ -610,14 +676,17 @@ export default function App() {
           <div>
             <Reveal from="left">
               <div className="mb-4 inline-flex items-center gap-2.5 rounded-full border border-ink/15 bg-panel/90 py-1 pl-1.5 pr-4 text-sm font-medium text-mint">
-                <ProfileAvatar src={FOTO_PROFIL} alt="Avatar Verns" />
+                <ProfileAvatar src={FOTO_PROFIL} alt="Avatar Rafardhan Athala (ataaDEV / Verns)" />
                 <Code2 size={15} aria-hidden="true" />
-                <span>Web enthusiast, {UMUR} tahun</span>
+                <span>Web Developer &amp; REST API Creator · {UMUR} tahun</span>
               </div>
             </Reveal>
             <Reveal from="left" delay={120}>
               <p className="font-display text-3xl font-extrabold text-mint sm:text-4xl">
-                alias taa / ataa
+                Rafardhan Athala
+              </p>
+              <p className="mt-1 font-display text-lg font-medium text-ink/70 sm:text-xl">
+                alias ataaDEV / Verns
               </p>
             </Reveal>
             <Reveal from="left" delay={240}>
@@ -638,6 +707,9 @@ export default function App() {
             <Reveal from="up" delay={220} className="mt-10 md:hidden">
               <ProfilePhotoCard
                 src={FOTO_PROFIL}
+                alt="Foto profil Rafardhan Athala (ataaDEV / Verns)"
+                name="Rafardhan Athala"
+                alias="ataaDEV / Verns"
                 className="mx-auto max-w-[300px]"
               />
             </Reveal>
@@ -650,7 +722,7 @@ export default function App() {
           </Reveal>
         </section>
 
-        <Marquee items={['HTML', 'CSS', 'React', 'Next.js', 'Komik', 'Game PC', 'Ice cream']} />
+        <Marquee items={['HTML', 'CSS', 'React', 'Next.js', 'REST API', 'Komik', 'Game PC', 'Ice cream']} />
 
         {/* TENTANG + FOTO PROFIL + TIMELINE BELAJAR */}
         <section id="tentang" className="mx-auto max-w-6xl scroll-mt-20 px-6 py-24">
@@ -665,6 +737,9 @@ export default function App() {
               <Reveal from="left" delay={160} className="mt-8 hidden md:block">
                 <ProfilePhotoCard
                   src={FOTO_PROFIL}
+                  alt="Foto profil Rafardhan Athala (ataaDEV / Verns)"
+                  name="Rafardhan Athala"
+                  alias="ataaDEV / Verns"
                   className="max-w-[320px]"
                 />
               </Reveal>
@@ -673,7 +748,16 @@ export default function App() {
             <div className="space-y-6 text-lg text-ink/80 md:pt-2">
               <Reveal from="right">
                 <p>
-                  Aku Verns, pelajar SMP di Jakarta. Awalnya cuma penasaran gimana caranya bikin situs, lalu keterusan sampai sekarang punya toko es krim dan situs komik sendiri.
+                  Aku Rafardhan Athala (dikenal juga sebagai ataaDEV / Verns), pelajar SMP di Jakarta. Awalnya cuma penasaran gimana caranya bikin situs dan REST API, lalu keterusan sampai sekarang punya toko es krim, situs komik, dan layanan digital sendiri di{' '}
+                  <a
+                    href="https://store.ataa.my.id/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-bold text-mint underline decoration-mint/40 underline-offset-4 transition-colors hover:decoration-mint"
+                  >
+                    store.ataa.my.id
+                  </a>
+                  .
                 </p>
               </Reveal>
               <Reveal from="right" delay={150}>
@@ -690,7 +774,7 @@ export default function App() {
                 <Reveal from="right" delay={300}>
                   <p className="mb-3 text-base font-bold text-ink">Tech stack yang kupakai</p>
                 </Reveal>
-                <ul className="flex flex-wrap gap-3 will-change-transform">
+                <ul className="flex flex-wrap gap-3">
                   {stack.map(({ n, i: I }, k) => (
                     <Reveal
                       as="li"
@@ -707,7 +791,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* Story Perjalanan Belajar (2024 → 2026) dengan animasi scroll GSAP */}
+          {/* Story Perjalanan Belajar (2024 → 2026) dengan animasi scroll GSAP ScrollTrigger */}
           <div id="perjalanan" ref={timelineRef} className="mt-16 scroll-mt-24 border-t-2 border-ink/15 pt-12">
             <Reveal from="left">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -723,7 +807,7 @@ export default function App() {
             <div aria-hidden="true" className="mt-6 h-1.5 w-full overflow-hidden rounded-full bg-ink/10">
               <div
                 data-story-progress
-                className="h-full w-full rounded-full bg-mint will-change-transform"
+                className="h-full w-full rounded-full bg-mint"
               />
             </div>
 
@@ -732,7 +816,7 @@ export default function App() {
                 <li
                   key={step.period}
                   data-story-step
-                  className="relative flex flex-col rounded-2xl border-2 border-ink/15 bg-panel/65 p-5 will-change-transform transition-colors duration-200 hover:border-mint/50"
+                  className="relative flex flex-col rounded-2xl border-2 border-ink/15 bg-panel/65 p-5 transition-colors duration-200 hover:border-mint/50"
                 >
                   <div className="mb-3 flex items-center gap-3">
                     <span className="font-display text-sm font-extrabold tabular-nums text-mint whitespace-nowrap">
@@ -741,7 +825,7 @@ export default function App() {
                     <span aria-hidden="true" className="relative h-[2px] flex-1 overflow-hidden bg-ink/15">
                       <span
                         data-story-bar
-                        className="absolute inset-0 bg-mint will-change-transform"
+                        className="absolute inset-0 bg-mint"
                       />
                     </span>
                   </div>
@@ -845,7 +929,7 @@ export default function App() {
                 rel="noopener noreferrer"
                 variant="outline"
                 className="contact-pulse"
-                style={{ animationDelay: '0s' }}
+                style={{ '--pulse-delay': '0s' }}
               >
                 <FaGithub size={18} /> GitHub VernsDS
               </Button>
@@ -853,7 +937,7 @@ export default function App() {
                 onClick={copyDiscord}
                 variant="outline"
                 className="contact-pulse"
-                style={{ animationDelay: '0.6s' }}
+                style={{ '--pulse-delay': '0.6s' }}
               >
                 <FaDiscord size={18} />{' '}
                 {copyState === 'copied'
@@ -868,9 +952,20 @@ export default function App() {
                 href="mailto:rafa979710@gmail.com"
                 variant="outline"
                 className="contact-pulse"
-                style={{ animationDelay: '1.2s' }}
+                style={{ '--pulse-delay': '1.2s' }}
               >
                 <Mail size={18} /> Email
+              </Button>
+              <Button
+                as="a"
+                href="https://store.ataa.my.id/"
+                target="_blank"
+                rel="noopener noreferrer"
+                variant="outline"
+                className="contact-pulse"
+                style={{ '--pulse-delay': '1.8s' }}
+              >
+                <Store size={18} /> Store ataaDEV <ArrowUpRight size={16} />
               </Button>
             </Reveal>
 
@@ -893,7 +988,7 @@ export default function App() {
             </div>
           </div>
           <p className="mx-auto mt-16 max-w-6xl text-sm text-ink/50">
-            © {new Date().getFullYear()} Verns (taa/ataa). Dibuat dengan React, Tailwind, shadcn/ui, React Bits, 21st.dev, dan Spline.
+            © {currentYear} Rafardhan Athala (ataaDEV / Verns). Dibuat dengan React, Tailwind, shadcn/ui, React Bits, 21st.dev, dan Spline.
           </p>
         </section>
       </main>

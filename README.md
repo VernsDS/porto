@@ -22,12 +22,49 @@ Taruh video loop (mp4, tanpa suara, sebaiknya di bawah 5 MB) di `public/bg.mp4`,
 Tanpa file itu, latar otomatis memakai gradasi biru lembut tanpa error 404.
 
 ## Checklist SEO & Google Search Console
-Sudah disiapkan di kode untuk domain **`https://ataa.my.id`**:
-- `meta robots` disetel ke `index, follow` (tidak memblokir Google).
-- `public/robots.txt` mengizinkan semua crawler dan mengarah ke `https://ataa.my.id/sitemap.xml`.
-- `public/sitemap.xml` sudah mengarah ke `https://ataa.my.id/`.
-- Title, meta description, OpenGraph, `canonical`, dan structured data (`WebSite` + `Person`) fokus pada satu topik utama: portofolio web developer Verns.
 
-Langkah terakhir di Google Search Console:
-1. Daftar properti `https://ataa.my.id` di [Google Search Console](https://search.google.com/search-console), lalu tempel tag `google-site-verification` di `index.html` (atau verifikasi via DNS domain).
-2. Kirim `https://ataa.my.id/sitemap.xml` di menu **Sitemaps** lalu klik **Request Indexing** untuk halaman utama agar cepat masuk hasil pencarian Google.
+### 1. Situs Utama (`https://ataa.my.id/`) — Sudah Terpasang
+- `<head>` di `index.html`: `<title>`, `description`, `keywords`, `author`, `robots` (`index, follow`), `canonical`, Open Graph, Twitter Card, dan JSON-LD `@graph` (`Person` + `WebSite`) untuk **Rafardhan Athala (`ataaDEV` / `Verns`)**.
+- `public/robots.txt`: mengizinkan semua crawler dan merujuk ke `https://ataa.my.id/sitemap.xml`.
+- `public/sitemap.xml`: memuat `https://ataa.my.id/` dan `https://store.ataa.my.id/`.
+
+### 2. Snippet Siap Tempel untuk Repo Store (`https://store.ataa.my.id/`)
+Tempel di dalam `<head>` halaman utama `store.ataa.my.id` (pastikan tidak ada `<title>` atau `<meta name="description">` ganda):
+
+```html
+<title>Store — Rafardhan Athala (ataaDEV)</title>
+<meta name="description" content="Layanan dan produk digital resmi oleh Rafardhan Athala (ataaDEV / Verns) melalui store.ataa.my.id." />
+<meta name="author" content="Rafardhan Athala (ataaDEV)" />
+<meta name="robots" content="index, follow" />
+<link rel="canonical" href="https://store.ataa.my.id/" />
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "url": "https://store.ataa.my.id/",
+  "name": "Store — ataaDEV (Rafardhan Athala)",
+  "creator": {
+    "@type": "Person",
+    "name": "Rafardhan Athala",
+    "alternateName": ["ataaDEV", "Verns", "VernsDS"],
+    "url": "https://ataa.my.id/"
+  }
+}
+</script>
+```
+
+Dan letakkan file `robots.txt` di root publik `store.ataa.my.id`:
+
+```txt
+User-agent: *
+Allow: /
+
+Sitemap: https://ataa.my.id/sitemap.xml
+```
+
+### 3. Langkah Deploy & Verifikasi Google Search Console
+1. Deploy kedua proyek (`ataa.my.id` dan `store.ataa.my.id`) dan pastikan `https://ataa.my.id/robots.txt`, `https://ataa.my.id/sitemap.xml`, dan `https://store.ataa.my.id/robots.txt` bisa diakses dengan HTTPS.
+2. Buka [Google Search Console](https://search.google.com/search-console) lalu pilih **Domain Property** → masukkan `ataa.my.id` dan verifikasi lewat **TXT record DNS** (metode ini otomatis mencakup `ataa.my.id` sekaligus subdomain `store.ataa.my.id` sehingga sitemap multi-subdomain diterima Google).
+3. Masuk ke menu **Sitemaps**, masukkan `https://ataa.my.id/sitemap.xml`, lalu klik **Submit**.
+4. Gunakan **URL Inspection** untuk `https://ataa.my.id/` dan `https://store.ataa.my.id/`, lalu klik **Request Indexing** pada keduanya.

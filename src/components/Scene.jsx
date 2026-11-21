@@ -44,17 +44,18 @@ function SceneFallback() {
 
 export default function Scene({ onReady }) {
   const containerRef = useRef(null)
-  const readyCalledRef = useRef(false)
+  const splineAppRef = useRef(null)
+  const readySentRef = useRef(false)
   const [isDesktop, setIsDesktop] = useState(() =>
     typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)').matches : false
   )
   const [loaded, setLoaded] = useState(false)
   const [failed, setFailed] = useState(false)
-  const [inView, setInView] = useState(true)
+  const [inView, setInView] = useState(false)
 
   const notifyReady = useCallback(() => {
-    if (readyCalledRef.current) return
-    readyCalledRef.current = true
+    if (readySentRef.current) return
+    readySentRef.current = true
     onReady?.()
   }, [onReady])
 
@@ -63,40 +64,69 @@ export default function Scene({ onReady }) {
     const mq = window.matchMedia('(min-width: 768px)')
     const handleChange = (e) => setIsDesktop(e.matches)
     setIsDesktop(mq.matches)
+    if (!mq.matches) {
+      notifyReady()
+    }
     if (mq.addEventListener) {
       mq.addEventListener('change', handleChange)
       return () => mq.removeEventListener('change', handleChange)
     }
     mq.addListener(handleChange)
     return () => mq.removeListener(handleChange)
-  }, [])
+  }, [notifyReady])
 
+  // Pantau visibilitas untuk pause/resume WebGL agar tetap ringan saat pengguna scroll melewati area 3D
   useEffect(() => {
-    // Di HP tidak perlu muat 3D sama sekali, langsung tandai siap
-    if (!isDesktop) {
-      notifyReady()
+    if (!isDesktop) return
+    const el = containerRef.current
+    if (!el) return
+
+    if (typeof IntersectionObserver === 'undefined') {
+      setInView(true)
       return
     }
 
-    const el = containerRef.current
-    if (!el || typeof IntersectionObserver === 'undefined') return
-
-    // Sembunyikan canvas saat di luar layar agar scroll bawah tetap ringan
     const observer = new IntersectionObserver(
       ([entry]) => {
         setInView(entry.isIntersecting)
       },
-      { rootMargin: '200px' }
+      { rootMargin: '180px 0px' }
     )
 
     observer.observe(el)
     return () => observer.disconnect()
-  }, [isDesktop, notifyReady])
+  }, [isDesktop])
 
-  const handleLoad = useCallback(() => {
-    setLoaded(true)
-    notifyReady()
-  }, [notifyReady])
+  // Hentikan penuh loop render WebGL saat di luar layar atau tab browser sedang tidak aktif
+  useEffect(() => {
+    const syncPlayback = () => {
+      const app = splineAppRef.current
+      if (!app) return
+      const shouldRun = inView && !document.hidden
+      try {
+        if (shouldRun) {
+          app.play?.()
+        } else {
+          app.stop?.()
+        }
+      } catch {
+        // Abaikan jika runtime Spline sedang dalam proses dispose
+      }
+    }
+
+    syncPlayback()
+    document.addEventListener('visibilitychange', syncPlayback)
+    return () => document.removeEventListener('visibilitychange', syncPlayback)
+  }, [inView, loaded])
+
+  const handleLoad = useCallback(
+    (splineApp) => {
+      splineAppRef.current = splineApp
+      setLoaded(true)
+      notifyReady()
+    },
+    [notifyReady]
+  )
 
   const handleError = useCallback(() => {
     setFailed(true)
@@ -109,7 +139,7 @@ export default function Scene({ onReady }) {
   return (
     <div
       ref={containerRef}
-      className="relative h-full w-full will-change-transform"
+      className="relative h-full w-full"
       style={{ visibility: loaded && !inView ? 'hidden' : 'visible' }}
     >
       {!loaded && (
