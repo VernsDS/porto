@@ -30,6 +30,7 @@ import { ProfilePhotoCard, ProfileAvatar } from './components/ProfilePhotoCard'
 import Scene from './components/Scene'
 import Background from './components/Background'
 import Preloader from './components/Preloader'
+import StickyNav from './components/StickyNav'
 
 const UMUR = 13
 const MULAI = 2024
@@ -41,6 +42,14 @@ const CACHE_TTL_MS = 60 * 60 * 1000 // Cache 1 jam
 // Foto profil asli Verns (tersimpan di public/assets/aistudio/my_picture_29bc2fec.jpg)
 const FOTO_PROFIL = '/assets/aistudio/my_picture_29bc2fec.jpg'
 
+const NAV_SECTIONS = [
+  { id: 'pengantar', label: 'Pengantar' },
+  { id: 'tentang', label: 'Tentang' },
+  { id: 'perjalanan', label: 'Perjalanan' },
+  { id: 'proyek', label: 'Proyek' },
+  { id: 'kontak', label: 'Kontak' },
+]
+
 const LEARNING_TIMELINE = [
   {
     period: '2024',
@@ -48,14 +57,14 @@ const LEARNING_TIMELINE = [
     summary: 'Awalnya penasaran gimana website dibuat, lalu mulai belajar dasar HTML & CSS secara otodidak.',
   },
   {
-    period: '2024 – 2025',
+    period: '2025',
     title: 'Rilis proyek nyata',
-    summary: 'Mulai membangun situs yang langsung bisa dipakai: toko es krim Raqinaice, situs komik TaaManga, dan web kelas 7E Sevenexcellent.',
+    summary: 'Membangun situs yang langsung dipakai banyak orang: toko es krim Raqinaice, situs komik TaaManga, dan web kelas 7E Sevenexcellent.',
   },
   {
-    period: '2025 – Sekarang',
+    period: '2026',
     title: 'React, Next.js & interaksi 3D',
-    summary: 'Eksplor framework modern, animasi scroll GSAP & Lenis, integrasi 3D Spline, serta rutin merilis proyek baru di GitHub.',
+    summary: 'Naik level ke framework modern, animasi scroll GSAP & Lenis, integrasi 3D Spline, serta rutin merilis proyek terbaru di GitHub.',
   },
 ]
 
@@ -245,15 +254,20 @@ export default function App() {
   })
   const [copyState, setCopyState] = useState('idle') // 'idle' | 'copied' | 'error'
   const [projects, setProjects] = useState(CURATED_PROJECTS)
+  const [activeSection, setActiveSection] = useState('pengantar')
+  const [showStickyNav, setShowStickyNav] = useState(false)
   const [sceneReady, setSceneReady] = useState(false)
   const [projectsReady, setProjectsReady] = useState(false)
   const [fontsReady, setFontsReady] = useState(false)
   const [forceReady, setForceReady] = useState(false)
   const lenisRef = useRef(null)
   const copyTimerRef = useRef(null)
+  const timelineRef = useRef(null)
+  const spyRafRef = useRef(0)
 
   const isDark = theme === 'dark'
-  const tahun = Math.max(1, new Date().getFullYear() - MULAI)
+  const currentYear = Math.max(2026, new Date().getFullYear())
+  const tahun = Math.max(1, currentYear - MULAI)
   const appReady = (sceneReady && projectsReady && fontsReady) || forceReady
 
   // Sinkronkan kelas .dark, penyimpanan lokal, dan warna status bar browser
@@ -353,7 +367,41 @@ export default function App() {
     }
   }, [])
 
-  // Inisialisasi Lenis + GSAP ScrollTrigger
+  // Hitung section aktif (Scroll Spy) & tampilkan header sticky setelah melewati Hero
+  const evaluateScrollSpy = useCallback(() => {
+    if (typeof window === 'undefined') return
+    const scrollY = window.scrollY || window.pageYOffset || 0
+    const vh = window.innerHeight || 800
+    const heroThreshold = Math.max(280, vh * 0.65)
+    setShowStickyNav(scrollY > heroThreshold)
+
+    const docHeight = document.documentElement.scrollHeight
+    if (vh + scrollY >= docHeight - 48) {
+      setActiveSection('kontak')
+      return
+    }
+
+    const triggerLine = Math.min(240, vh * 0.34)
+    let current = NAV_SECTIONS[0].id
+    for (const sec of NAV_SECTIONS) {
+      const el = document.getElementById(sec.id)
+      if (!el) continue
+      if (el.getBoundingClientRect().top <= triggerLine) {
+        current = sec.id
+      }
+    }
+    setActiveSection((prev) => (prev === current ? prev : current))
+  }, [])
+
+  const scheduleScrollSpy = useCallback(() => {
+    if (spyRafRef.current) return
+    spyRafRef.current = requestAnimationFrame(() => {
+      spyRafRef.current = 0
+      evaluateScrollSpy()
+    })
+  }, [evaluateScrollSpy])
+
+  // Inisialisasi Lenis + GSAP ScrollTrigger + sinkronisasi Scroll Spy
   useEffect(() => {
     gsap.registerPlugin(ScrollTrigger)
     const lenis = new Lenis({ lerp: 0.1 })
@@ -361,18 +409,29 @@ export default function App() {
 
     lenis.on('scroll', () => {
       ScrollTrigger.update()
+      scheduleScrollSpy()
     })
 
     const tick = (t) => lenis.raf(t * 1000)
     gsap.ticker.add(tick)
     gsap.ticker.lagSmoothing(0)
 
+    window.addEventListener('scroll', scheduleScrollSpy, { passive: true })
+    window.addEventListener('resize', scheduleScrollSpy, { passive: true })
+    evaluateScrollSpy()
+
     return () => {
+      window.removeEventListener('scroll', scheduleScrollSpy)
+      window.removeEventListener('resize', scheduleScrollSpy)
+      if (spyRafRef.current) {
+        cancelAnimationFrame(spyRafRef.current)
+        spyRafRef.current = 0
+      }
       gsap.ticker.remove(tick)
       lenis.destroy()
       lenisRef.current = null
     }
-  }, [])
+  }, [evaluateScrollSpy, scheduleScrollSpy])
 
   // Kunci scroll saat preloader masih aktif, lalu refresh posisi GSAP setelah siap
   useEffect(() => {
@@ -396,8 +455,9 @@ export default function App() {
     if (!appReady) return
     requestAnimationFrame(() => {
       ScrollTrigger.refresh()
+      evaluateScrollSpy()
     })
-  }, [projects, appReady])
+  }, [projects, appReady, evaluateScrollSpy])
 
   useEffect(() => {
     return () => {
@@ -405,14 +465,76 @@ export default function App() {
     }
   }, [])
 
-  // Smooth scroll lewat Lenis saat tombol anchor (#pengantar, #proyek, #kontak) diklik
+  // Animasi scroll GSAP ScrollTrigger khusus bagian story perjalanan (2024 -> 2026)
+  useEffect(() => {
+    const container = timelineRef.current
+    if (!container) return
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+
+    gsap.registerPlugin(ScrollTrigger)
+    const ctx = gsap.context(() => {
+      const progressBar = container.querySelector('[data-story-progress]')
+      const steps = gsap.utils.toArray('[data-story-step]', container)
+      const bars = gsap.utils.toArray('[data-story-bar]', container)
+
+      const tl = gsap.timeline({
+        scrollTrigger: {
+          trigger: container,
+          start: 'top 82%',
+          end: 'bottom 58%',
+          scrub: 0.65,
+        },
+      })
+
+      if (progressBar) {
+        tl.fromTo(
+          progressBar,
+          { scaleX: 0, transformOrigin: 'left center' },
+          { scaleX: 1, ease: 'none', duration: 1 },
+          0
+        )
+      }
+
+      steps.forEach((step, idx) => {
+        const startAt = idx * 0.24
+        tl.fromTo(
+          step,
+          { opacity: 0.15, y: 36 },
+          { opacity: 1, y: 0, ease: 'power2.out', duration: 0.42 },
+          startAt
+        )
+        if (bars[idx]) {
+          tl.fromTo(
+            bars[idx],
+            { scaleX: 0, transformOrigin: 'left center' },
+            { scaleX: 1, ease: 'power2.out', duration: 0.38 },
+            startAt + 0.08
+          )
+        }
+      })
+    }, container)
+
+    return () => ctx.revert()
+  }, [])
+
+  // Smooth scroll lewat Lenis saat tombol anchor / navigasi diklik (dengan offset header sticky)
   const scrollToSection = useCallback((e, selector) => {
+    e?.preventDefault()
+    const prefersReduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+
+    if (selector === '#top') {
+      if (lenisRef.current && !prefersReduced) {
+        lenisRef.current.scrollTo(0, { duration: 1.0 })
+      } else {
+        window.scrollTo({ top: 0, behavior: prefersReduced ? 'auto' : 'smooth' })
+      }
+      return
+    }
+
     const target = document.querySelector(selector)
     if (!target) return
-    e.preventDefault()
-    const prefersReduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
     if (lenisRef.current && !prefersReduced) {
-      lenisRef.current.scrollTo(target, { duration: 1.1 })
+      lenisRef.current.scrollTo(target, { offset: -72, duration: 1.0 })
     } else {
       target.scrollIntoView({ behavior: prefersReduced ? 'auto' : 'smooth' })
     }
@@ -456,22 +578,35 @@ export default function App() {
   return (
     <>
       <Preloader ready={appReady} />
+      <StickyNav
+        sections={NAV_SECTIONS}
+        activeSection={activeSection}
+        visible={showStickyNav}
+        isDark={isDark}
+        onToggleTheme={toggleTheme}
+        onNavigate={scrollToSection}
+      />
+      {/* Tombol tema pojok kanan atas saat masih berada di area Hero */}
       <button
         type="button"
         onClick={toggleTheme}
+        tabIndex={showStickyNav ? -1 : 0}
+        aria-hidden={showStickyNav}
         aria-pressed={isDark}
         aria-label={isDark ? 'Ganti ke mode terang' : 'Ganti ke mode gelap'}
-        className="fixed right-4 top-4 z-50 inline-flex h-11 items-center gap-2 rounded-xl border-2 border-ink/25 bg-panel/85 px-3.5 text-sm font-bold text-ink shadow-sm backdrop-blur-md transition-all duration-200 hover:border-mint hover:text-mint active:translate-y-0.5 whitespace-nowrap shrink-0"
+        className={`fixed right-4 top-4 z-40 inline-flex h-11 items-center gap-2 rounded-xl border-2 border-ink/25 bg-panel/85 px-3.5 text-sm font-bold text-ink shadow-sm backdrop-blur-md transition-all duration-200 hover:border-mint hover:text-mint active:translate-y-0.5 whitespace-nowrap shrink-0 ${
+          showStickyNav ? 'pointer-events-none -translate-y-2 opacity-0' : 'translate-y-0 opacity-100'
+        }`}
       >
         {isDark ? <Sun size={17} aria-hidden="true" /> : <Moon size={17} aria-hidden="true" />}
         <span>{isDark ? 'Terang' : 'Gelap'}</span>
       </button>
-      <main className="overflow-x-clip">
+      <main id="top" className="overflow-x-clip">
         <Background />
         <ParallaxHero ready={appReady} onScrollDown={scrollToSection} />
 
         {/* PENGANTAR + AVATAR / 3D */}
-        <section id="pengantar" className="mx-auto grid max-w-6xl items-center gap-8 px-6 py-20 lg:grid-cols-2">
+        <section id="pengantar" className="mx-auto grid max-w-6xl scroll-mt-20 items-center gap-8 px-6 py-20 lg:grid-cols-2">
           <div>
             <Reveal from="left">
               <div className="mb-4 inline-flex items-center gap-2.5 rounded-full border border-ink/15 bg-panel/90 py-1 pl-1.5 pr-4 text-sm font-medium text-mint">
@@ -518,7 +653,7 @@ export default function App() {
         <Marquee items={['HTML', 'CSS', 'React', 'Next.js', 'Komik', 'Game PC', 'Ice cream']} />
 
         {/* TENTANG + FOTO PROFIL + TIMELINE BELAJAR */}
-        <section id="tentang" className="mx-auto max-w-6xl px-6 py-24">
+        <section id="tentang" className="mx-auto max-w-6xl scroll-mt-20 px-6 py-24">
           <div className="grid items-start gap-10 md:grid-cols-[1fr_1.2fr]">
             <div>
               <Reveal from="left">
@@ -572,33 +707,43 @@ export default function App() {
             </div>
           </div>
 
-          {/* Mini Timeline Perjalanan Belajar (2024 → Sekarang) */}
-          <div className="mt-16 border-t-2 border-ink/15 pt-12">
+          {/* Story Perjalanan Belajar (2024 → 2026) dengan animasi scroll GSAP */}
+          <div id="perjalanan" ref={timelineRef} className="mt-16 scroll-mt-24 border-t-2 border-ink/15 pt-12">
             <Reveal from="left">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h3 className="font-display text-2xl font-extrabold text-ink sm:text-3xl">
                   Perjalanan belajarku
                 </h3>
                 <span className="text-sm font-medium tabular-nums text-ink/60">
-                  {MULAI} — Sekarang
+                  {MULAI} — {currentYear}
                 </span>
               </div>
             </Reveal>
 
+            <div aria-hidden="true" className="mt-6 h-1.5 w-full overflow-hidden rounded-full bg-ink/10">
+              <div
+                data-story-progress
+                className="h-full w-full rounded-full bg-mint will-change-transform"
+              />
+            </div>
+
             <ol className="relative mt-8 grid gap-8 md:grid-cols-3 md:gap-6">
               {LEARNING_TIMELINE.map((step, idx) => (
-                <Reveal
-                  as="li"
+                <li
                   key={step.period}
-                  from="up"
-                  delay={idx * 120}
-                  className="relative flex flex-col"
+                  data-story-step
+                  className="relative flex flex-col rounded-2xl border-2 border-ink/15 bg-panel/65 p-5 will-change-transform transition-colors duration-200 hover:border-mint/50"
                 >
                   <div className="mb-3 flex items-center gap-3">
                     <span className="font-display text-sm font-extrabold tabular-nums text-mint whitespace-nowrap">
                       0{idx + 1}. {step.period}
                     </span>
-                    <span aria-hidden="true" className="h-[2px] flex-1 bg-ink/15" />
+                    <span aria-hidden="true" className="relative h-[2px] flex-1 overflow-hidden bg-ink/15">
+                      <span
+                        data-story-bar
+                        className="absolute inset-0 bg-mint will-change-transform"
+                      />
+                    </span>
                   </div>
                   <h4 className="font-display text-xl font-extrabold text-ink">
                     {step.title}
@@ -606,14 +751,14 @@ export default function App() {
                   <p className="mt-2 text-base leading-relaxed text-ink/75">
                     {step.summary}
                   </p>
-                </Reveal>
+                </li>
               ))}
             </ol>
           </div>
         </section>
 
         {/* PROYEK — gabungan katalog kurasi & auto-sync GitHub public repositories */}
-        <section id="proyek" className="mx-auto max-w-6xl px-6 pb-24">
+        <section id="proyek" className="mx-auto max-w-6xl scroll-mt-20 px-6 pb-24">
           <Reveal from="left">
             <h2 className="mb-10 font-display text-4xl font-extrabold [text-wrap:balance] sm:text-5xl">
               {projects.length} proyek webku
@@ -680,7 +825,7 @@ export default function App() {
         </section>
 
         {/* KONTAK + REDIRECT */}
-        <section id="kontak" className="bg-panel/80 px-6 py-24">
+        <section id="kontak" className="scroll-mt-20 bg-panel/80 px-6 py-24">
           <div className="mx-auto max-w-6xl">
             <Reveal from="left">
               <h2 className="font-display text-4xl font-extrabold [text-wrap:balance] sm:text-5xl">
@@ -693,10 +838,23 @@ export default function App() {
               </p>
             </Reveal>
             <Reveal from="right" delay={200} className="mt-8 flex flex-wrap gap-3">
-              <Button as="a" href="https://github.com/VernsDS" target="_blank" rel="noopener noreferrer" variant="outline">
+              <Button
+                as="a"
+                href="https://github.com/VernsDS"
+                target="_blank"
+                rel="noopener noreferrer"
+                variant="outline"
+                className="contact-pulse"
+                style={{ animationDelay: '0s' }}
+              >
                 <FaGithub size={18} /> GitHub VernsDS
               </Button>
-              <Button onClick={copyDiscord} variant="outline">
+              <Button
+                onClick={copyDiscord}
+                variant="outline"
+                className="contact-pulse"
+                style={{ animationDelay: '0.6s' }}
+              >
                 <FaDiscord size={18} />{' '}
                 {copyState === 'copied'
                   ? 'Tersalin: verns.lol'
@@ -705,7 +863,13 @@ export default function App() {
                     : 'Discord verns.lol'}
                 {copyState === 'copied' ? <Check size={16} /> : <Copy size={16} />}
               </Button>
-              <Button as="a" href="mailto:rafa979710@gmail.com" variant="outline">
+              <Button
+                as="a"
+                href="mailto:rafa979710@gmail.com"
+                variant="outline"
+                className="contact-pulse"
+                style={{ animationDelay: '1.2s' }}
+              >
                 <Mail size={18} /> Email
               </Button>
             </Reveal>

@@ -36,8 +36,26 @@ body { @apply bg-soft overflow-x-hidden text-ink font-sans antialiased transitio
   0% { transform: translate3d(0, 0, 0); }
   100% { transform: translate3d(-50%, 0, 0); }
 }
+@keyframes contact-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgb(var(--c-mint) / 0.3);
+  }
+  55% {
+    box-shadow: 0 0 0 8px rgb(var(--c-mint) / 0);
+  }
+}
+.contact-pulse {
+  animation: contact-pulse 2.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+.contact-pulse:hover,
+.contact-pulse:focus-visible {
+  animation-play-state: paused;
+}
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 
 .rv { opacity: 0; transform: translate3d(var(--rx, 0), var(--ry, 32px), 0); transition: opacity .7s ease, transform .8s cubic-bezier(.22, 1, .36, 1); transition-delay: var(--d, 0ms); }
 .rv.in { opacity: 1; transform: none; }
 @media (prefers-reduced-motion: reduce) { .rv { opacity: 1; transform: none; } }
+
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
