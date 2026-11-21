@@ -1,23 +1,61 @@
 import { Suspense, lazy, useEffect, useRef, useState } from 'react'
+
 const Spline = lazy(() => import('@splinetool/react-spline'))
-// Ganti dengan link scene milikmu dari spline.design (Export → Code → URL .splinecode)
+
+// Link scene dari spline.design
 export const SPLINE_SCENE = 'https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode'
-// 3D hanya dimuat saat panelnya terlihat (dan tidak dimuat di HP) supaya halaman ringan.
-export default function Scene() {
-  const ref = useRef(null)
-  const [show, setShow] = useState(false)
+
+export default function Scene({ onReady }) {
+  const containerRef = useRef(null)
+  const [isDesktop] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)').matches : false
+  )
+  const [loaded, setLoaded] = useState(false)
+  const [inView, setInView] = useState(true)
+
   useEffect(() => {
-    const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setShow(true); io.disconnect() } }, { rootMargin: '150px' })
-    io.observe(ref.current)
-    return () => io.disconnect()
-  }, [])
+    // Di HP tidak perlu muat 3D sama sekali, langsung tandai siap
+    if (!isDesktop) {
+      onReady?.()
+      return
+    }
+
+    const el = containerRef.current
+    if (!el) return
+
+    // Sembunyikan canvas saat di luar layar agar scroll bawah tetap ringan
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setInView(entry.isIntersecting)
+      },
+      { rootMargin: '200px' }
+    )
+
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [isDesktop, onReady])
+
+  const handleLoad = () => {
+    setLoaded(true)
+    onReady?.()
+  }
+
+  if (!isDesktop) return null
+
   return (
-    <div ref={ref} className="h-full w-full">
-      {show && (
-        <Suspense fallback={<div className="grid h-full place-items-center text-mint/60">Memuat 3D…</div>}>
-          <Spline scene={SPLINE_SCENE} />
-        </Suspense>
+    <div
+      ref={containerRef}
+      className="relative h-full w-full will-change-transform"
+      style={{ visibility: loaded && !inView ? 'hidden' : 'visible' }}
+    >
+      {!loaded && (
+        <div className="absolute inset-0 grid place-items-center text-sm font-medium text-mint/70">
+          Memuat model 3D…
+        </div>
       )}
+      <Suspense fallback={null}>
+        <Spline scene={SPLINE_SCENE} onLoad={handleLoad} />
+      </Suspense>
     </div>
   )
 }
