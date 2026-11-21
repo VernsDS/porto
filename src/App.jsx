@@ -24,19 +24,26 @@ import { SiNextdotjs } from 'react-icons/si'
 import { Button } from './components/ui/button'
 import { ShimmerButton } from './components/ui/shimmer-button'
 import { SpotlightCard, Marquee, Reveal } from './components/reactbits'
+import { ProfilePhotoCard, ProfileAvatar } from './components/ProfilePhotoCard'
 import Scene from './components/Scene'
 import Background from './components/Background'
 import Preloader from './components/Preloader'
+import starterPhoto from './assets/images/verns_profile_starter_1795240567497.jpg'
 
 const UMUR = 13
 const MULAI = 2024
 const GITHUB_USERNAME = 'VernsDS'
-const CACHE_KEY = 'verns_github_repos_v1'
+const CACHE_KEY = 'verns_github_repos_v2'
 const CACHE_TTL_MS = 60 * 60 * 1000 // Cache 1 jam
 
-// Data cadangan jika GitHub API sedang limit atau user offline
-const FALLBACK_PROJECTS = [
+// Ganti starterPhoto dengan '/foto.jpg' setelah kamu taruh foto aslimu di folder public/
+const FOTO_PROFIL = starterPhoto
+
+// Katalog proyek unggulan: tetap dipertahankan deskripsi & live URL-nya saat digabung dengan GitHub API
+const CURATED_PROJECTS = [
   {
+    id: 'taamanga',
+    matchKeys: ['taamanga', 'taa-manga'],
     nama: 'TaaManga',
     url: 'https://taamanga.my.id',
     hasLiveSite: true,
@@ -48,6 +55,8 @@ const FALLBACK_PROJECTS = [
     stars: 0,
   },
   {
+    id: 'sevenexcellent',
+    matchKeys: ['sevenexcellent', 'seven-excellent', '7e'],
     nama: 'Sevenexcellent',
     url: 'https://sevenexcellent203.web.id',
     hasLiveSite: true,
@@ -59,6 +68,8 @@ const FALLBACK_PROJECTS = [
     stars: 0,
   },
   {
+    id: 'raqinaice',
+    matchKeys: ['raqinaice', 'raqina-ice'],
     nama: 'Raqinaice',
     url: 'https://raqinaice.vercel.app',
     hasLiveSite: true,
@@ -70,6 +81,8 @@ const FALLBACK_PROJECTS = [
     stars: 0,
   },
   {
+    id: 'verns-store',
+    matchKeys: ['verns-store', 'verns_store', 'verns-store-website'],
     nama: "Vern's Store",
     url: 'https://verns-store-website.vercel.app',
     hasLiveSite: true,
@@ -114,21 +127,108 @@ function renderProjectIcon(iconKey) {
 }
 
 function normalizeHomepage(homepage) {
-  if (!homepage || !homepage.trim()) return ''
+  if (!homepage || typeof homepage !== 'string' || !homepage.trim()) return ''
   const trimmed = homepage.trim()
-  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+  const candidate = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+  try {
+    const parsed = new URL(candidate)
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      return parsed.href
+    }
+    return ''
+  } catch {
+    return ''
+  }
+}
+
+function normalizeKey(str = '') {
+  return str.toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+function matchCuratedProject(repo) {
+  const repoKey = normalizeKey(repo.name)
+  const repoHomepage = normalizeHomepage(repo.homepage).toLowerCase()
+
+  return CURATED_PROJECTS.find((item) => {
+    const curatedUrl = item.url.toLowerCase().replace(/\/+$/, '')
+    if (repoHomepage && repoHomepage.replace(/\/+$/, '') === curatedUrl) return true
+    return item.matchKeys.some((key) => {
+      const normalized = normalizeKey(key)
+      return repoKey === normalized || repoKey.includes(normalized)
+    })
+  })
+}
+
+// Gabungkan data repo publik GitHub dengan katalog proyek kurasi agar deskripsi & live URL tetap rapi
+function mergeGithubProjects(repos) {
+  const validRepos = repos
+    .filter((repo) => !repo.fork && repo.name.toLowerCase() !== GITHUB_USERNAME.toLowerCase())
+    .sort((a, b) => new Date(b.pushed_at) - new Date(a.pushed_at))
+
+  const matchedById = new Map()
+  const extraGithubProjects = []
+
+  for (const repo of validRepos) {
+    const curated = matchCuratedProject(repo)
+    const liveUrl = normalizeHomepage(repo.homepage)
+
+    if (curated && !matchedById.has(curated.id)) {
+      const mergedTags =
+        curated.tags.length > 0
+          ? curated.tags
+          : [repo.language, ...(repo.topics || [])].filter(Boolean).slice(0, 4)
+
+      matchedById.set(curated.id, {
+        ...curated,
+        url: curated.url || liveUrl || repo.html_url,
+        hasLiveSite: Boolean(curated.url || liveUrl),
+        repoUrl: repo.html_url,
+        status: repo.archived ? 'Arsip' : curated.status,
+        stars: repo.stargazers_count || 0,
+        tags: mergedTags.length > 0 ? mergedTags : ['GitHub'],
+      })
+    } else if (!curated) {
+      const tags = [repo.language, ...(repo.topics || [])].filter(Boolean).slice(0, 4)
+      extraGithubProjects.push({
+        id: `gh-${repo.id}`,
+        nama: repo.name,
+        url: liveUrl || repo.html_url,
+        hasLiveSite: Boolean(liveUrl),
+        repoUrl: repo.html_url,
+        iconKey: pickIconKey(repo.name, repo.description || ''),
+        desc: repo.description?.trim() || 'Repository publik di GitHub.',
+        tags: tags.length > 0 ? tags : ['GitHub'],
+        status: repo.archived ? 'Arsip' : 'Aktif',
+        stars: repo.stargazers_count || 0,
+      })
+    }
+  }
+
+  const mergedCurated = CURATED_PROJECTS.map((item) => matchedById.get(item.id) || item)
+  return [...mergedCurated, ...extraGithubProjects]
+}
+
+// Pastikan Bento Grid 6-kolom selalu penuh seimbang tanpa lubang kosong untuk jumlah proyek ganjil maupun genap
+function getProjectSpanClass(index, total) {
+  if (total === 1) return 'md:col-span-6'
+  if (index === 0) return 'md:col-span-4'
+  if (index === 1) return 'md:col-span-2'
+  const remainingCount = total - 2
+  if (remainingCount % 2 === 1 && index === total - 1) return 'md:col-span-6'
+  return 'md:col-span-3'
 }
 
 export default function App() {
-  const [copied, setCopied] = useState(false)
-  const [projects, setProjects] = useState(FALLBACK_PROJECTS)
+  const [copyState, setCopyState] = useState('idle') // 'idle' | 'copied' | 'error'
+  const [projects, setProjects] = useState(CURATED_PROJECTS)
   const [sceneReady, setSceneReady] = useState(false)
   const [projectsReady, setProjectsReady] = useState(false)
   const [fontsReady, setFontsReady] = useState(false)
   const [forceReady, setForceReady] = useState(false)
   const lenisRef = useRef(null)
+  const copyTimerRef = useRef(null)
 
-  const tahun = new Date().getFullYear() - MULAI
+  const tahun = Math.max(1, new Date().getFullYear() - MULAI)
   const appReady = (sceneReady && projectsReady && fontsReady) || forceReady
 
   const handleSceneReady = useCallback(() => {
@@ -148,11 +248,12 @@ export default function App() {
     return () => clearTimeout(fallbackTimer)
   }, [])
 
-  // Auto-sync public repository dari GitHub API
+  // Auto-sync public repository dari GitHub API + gabungkan dengan katalog kurasi
   useEffect(() => {
     let active = true
 
     async function loadGithubProjects() {
+      // Baca cache dalam try/catch terpisah agar cache korup tidak menghalangi fetch baru
       try {
         const rawCache = localStorage.getItem(CACHE_KEY)
         if (rawCache) {
@@ -169,7 +270,15 @@ export default function App() {
             return
           }
         }
+      } catch {
+        try {
+          localStorage.removeItem(CACHE_KEY)
+        } catch {
+          // Abaikan bila storage diblokir browser
+        }
+      }
 
+      try {
         const res = await fetch(
           `https://api.github.com/users/${GITHUB_USERNAME}/repos?sort=pushed&per_page=100`,
           { headers: { Accept: 'application/vnd.github+json' } }
@@ -177,32 +286,18 @@ export default function App() {
 
         if (!res.ok) throw new Error(`GitHub API ${res.status}`)
         const repos = await res.json()
+        const merged = mergeGithubProjects(Array.isArray(repos) ? repos : [])
 
-        const synced = repos
-          .filter((repo) => !repo.fork && repo.name.toLowerCase() !== GITHUB_USERNAME.toLowerCase())
-          .sort((a, b) => new Date(b.pushed_at) - new Date(a.pushed_at))
-          .map((repo) => {
-            const liveUrl = normalizeHomepage(repo.homepage)
-            const tags = [repo.language, ...(repo.topics || [])].filter(Boolean).slice(0, 4)
-            return {
-              nama: repo.name,
-              url: liveUrl || repo.html_url,
-              hasLiveSite: Boolean(liveUrl),
-              repoUrl: repo.html_url,
-              iconKey: pickIconKey(repo.name, repo.description || ''),
-              desc: repo.description?.trim() || 'Repository publik di GitHub.',
-              tags: tags.length > 0 ? tags : ['GitHub'],
-              status: repo.archived ? 'Arsip' : 'Aktif',
-              stars: repo.stargazers_count || 0,
-            }
-          })
-
-        if (active && synced.length > 0) {
-          setProjects(synced)
-          localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), data: synced }))
+        if (active && merged.length > 0) {
+          setProjects(merged)
+          try {
+            localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), data: merged }))
+          } catch {
+            // Abaikan error kuota / mode privat
+          }
         }
       } catch {
-        // Tetap gunakan FALLBACK_PROJECTS jika API limit / offline
+        // Tetap gunakan CURATED_PROJECTS jika API limit / offline
       } finally {
         if (active) setProjectsReady(true)
       }
@@ -247,6 +342,10 @@ export default function App() {
         ScrollTrigger.refresh()
       })
     }
+
+    return () => {
+      document.body.style.overflow = ''
+    }
   }, [appReady])
 
   useEffect(() => {
@@ -256,28 +355,76 @@ export default function App() {
     })
   }, [projects, appReady])
 
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
+    }
+  }, [])
+
+  // Smooth scroll lewat Lenis saat tombol anchor (#pengantar, #proyek, #kontak) diklik
+  const scrollToSection = useCallback((e, selector) => {
+    const target = document.querySelector(selector)
+    if (!target) return
+    e.preventDefault()
+    const prefersReduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    if (lenisRef.current && !prefersReduced) {
+      lenisRef.current.scrollTo(target, { duration: 1.1 })
+    } else {
+      target.scrollIntoView({ behavior: prefersReduced ? 'auto' : 'smooth' })
+    }
+  }, [])
+
+  // Salin username Discord dengan fallback aman + pembersihan timer
   const copyDiscord = async () => {
+    const text = 'verns.lol'
+    let success = false
+
     try {
-      await navigator.clipboard.writeText('verns.lol')
-    } catch {}
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text)
+        success = true
+      }
+    } catch {
+      success = false
+    }
+
+    if (!success) {
+      try {
+        const textarea = document.createElement('textarea')
+        textarea.value = text
+        textarea.setAttribute('readonly', '')
+        textarea.style.position = 'fixed'
+        textarea.style.opacity = '0'
+        document.body.appendChild(textarea)
+        textarea.select()
+        success = document.execCommand('copy')
+        document.body.removeChild(textarea)
+      } catch {
+        success = false
+      }
+    }
+
+    setCopyState(success ? 'copied' : 'error')
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
+    copyTimerRef.current = setTimeout(() => setCopyState('idle'), 2200)
   }
 
   return (
     <>
       <Preloader ready={appReady} />
-      <main>
+      <main className="overflow-x-clip">
         <Background />
-        <ParallaxHero />
+        <ParallaxHero ready={appReady} onScrollDown={scrollToSection} />
 
-        {/* PENGANTAR + 3D */}
-        <section className="mx-auto grid max-w-6xl items-center gap-8 px-6 py-20 lg:grid-cols-2">
+        {/* PENGANTAR + AVATAR / 3D */}
+        <section id="pengantar" className="mx-auto grid max-w-6xl items-center gap-8 px-6 py-20 lg:grid-cols-2">
           <div>
             <Reveal from="left">
-              <p className="mb-4 inline-flex items-center gap-2 rounded-full bg-panel px-4 py-1.5 text-sm font-medium text-mint">
-                <Code2 size={16} /> Web enthusiast, {UMUR} tahun
-              </p>
+              <div className="mb-4 inline-flex items-center gap-2.5 rounded-full border border-ink/15 bg-panel/90 py-1 pl-1.5 pr-4 text-sm font-medium text-mint">
+                <ProfileAvatar src={FOTO_PROFIL} alt="Avatar Verns" />
+                <Code2 size={15} aria-hidden="true" />
+                <span>Web enthusiast, {UMUR} tahun</span>
+              </div>
             </Reveal>
             <Reveal from="left" delay={120}>
               <p className="font-display text-3xl font-extrabold text-mint sm:text-4xl">
@@ -290,14 +437,23 @@ export default function App() {
               </p>
             </Reveal>
             <Reveal from="left" delay={360} className="mt-8 flex flex-wrap gap-3">
-              <Button as="a" href="#proyek" size="lg">
+              <Button as="a" href="#proyek" onClick={(e) => scrollToSection(e, '#proyek')} size="lg">
                 Lihat proyek <ArrowDown size={18} />
               </Button>
-              <Button as="a" href="#kontak" variant="outline" size="lg">
+              <Button as="a" href="#kontak" onClick={(e) => scrollToSection(e, '#kontak')} variant="outline" size="lg">
                 Hubungi aku
               </Button>
             </Reveal>
+
+            {/* Kartu foto khusus layar HP karena model 3D Spline disembunyikan di mobile */}
+            <Reveal from="up" delay={220} className="mt-10 md:hidden">
+              <ProfilePhotoCard
+                src={FOTO_PROFIL}
+                className="mx-auto max-w-[300px]"
+              />
+            </Reveal>
           </div>
+
           <Reveal from="right" delay={200} className="hidden md:block">
             <div className="h-[340px] overflow-hidden rounded-3xl border-2 border-ink/15 bg-panel/60 sm:h-[420px] lg:h-[520px] [&_canvas]:max-md:pointer-events-none">
               <Scene onReady={handleSceneReady} />
@@ -307,12 +463,24 @@ export default function App() {
 
         <Marquee items={['HTML', 'CSS', 'React', 'Next.js', 'Komik', 'Game PC', 'Ice cream']} />
 
-        {/* TENTANG */}
-        <section className="mx-auto grid max-w-6xl gap-10 px-6 py-24 md:grid-cols-[1fr_1.2fr]">
-          <Reveal from="left">
-            <h2 className="font-display text-4xl font-extrabold sm:text-5xl">Tentang aku</h2>
-          </Reveal>
-          <div className="space-y-6 text-lg text-ink/80">
+        {/* TENTANG + FOTO PROFIL */}
+        <section id="tentang" className="mx-auto grid max-w-6xl items-start gap-10 px-6 py-24 md:grid-cols-[1fr_1.2fr]">
+          <div>
+            <Reveal from="left">
+              <h2 className="font-display text-4xl font-extrabold [text-wrap:balance] sm:text-5xl">
+                Tentang aku
+              </h2>
+            </Reveal>
+            {/* Kartu foto utama di desktop/tablet (di HP sudah tampil di Pengantar agar tidak dobel berdekatan) */}
+            <Reveal from="left" delay={160} className="mt-8 hidden md:block">
+              <ProfilePhotoCard
+                src={FOTO_PROFIL}
+                className="max-w-[320px]"
+              />
+            </Reveal>
+          </div>
+
+          <div className="space-y-6 text-lg text-ink/80 md:pt-2">
             <Reveal from="right">
               <p>
                 Aku Verns, pelajar SMP di Jakarta. Awalnya cuma penasaran gimana caranya bikin situs, lalu keterusan sampai sekarang punya toko es krim dan situs komik sendiri.
@@ -321,10 +489,10 @@ export default function App() {
             <Reveal from="right" delay={150}>
               <p className="flex flex-wrap items-center gap-x-6 gap-y-2 text-base">
                 <span className="inline-flex items-center gap-2">
-                  <Gamepad2 className="text-berry" /> Main game di komputer
+                  <Gamepad2 className="text-berry" aria-hidden="true" /> Main game di komputer
                 </span>
                 <span className="inline-flex items-center gap-2">
-                  <BookOpen className="text-berry" /> Baca komik
+                  <BookOpen className="text-berry" aria-hidden="true" /> Baca komik
                 </span>
               </p>
             </Reveal>
@@ -339,9 +507,9 @@ export default function App() {
                     key={n}
                     from="right"
                     delay={400 + k * 120}
-                    className="inline-flex items-center gap-2 rounded-xl border-2 border-ink/20 px-4 py-2 font-medium"
+                    className="inline-flex items-center gap-2 rounded-xl border-2 border-ink/20 bg-panel/50 px-4 py-2 font-medium"
                   >
-                    <I size={20} className="text-mint" /> {n}
+                    <I size={20} className="text-mint" aria-hidden="true" /> {n}
                   </Reveal>
                 ))}
               </ul>
@@ -349,33 +517,32 @@ export default function App() {
           </div>
         </section>
 
-        {/* PROYEK — auto-sync dari GitHub public repositories */}
+        {/* PROYEK — gabungan katalog kurasi & auto-sync GitHub public repositories */}
         <section id="proyek" className="mx-auto max-w-6xl px-6 pb-24">
           <Reveal from="left">
-            <h2 className="mb-10 font-display text-4xl font-extrabold sm:text-5xl">
+            <h2 className="mb-10 font-display text-4xl font-extrabold [text-wrap:balance] sm:text-5xl">
               {projects.length} proyek webku
             </h2>
           </Reveal>
           <div className="grid gap-5 md:grid-cols-6">
             {projects.map((p, i) => {
               const Icon = renderProjectIcon(p.iconKey)
-              const spanClass =
-                i === 0 ? 'md:col-span-4' : i === 1 ? 'md:col-span-2' : 'md:col-span-3'
+              const spanClass = getProjectSpanClass(i, projects.length)
               return (
                 <Reveal
-                  key={p.nama}
+                  key={p.id || p.nama}
                   from={i % 2 ? 'right' : 'left'}
                   delay={i % 2 ? 120 : 0}
                   className={spanClass}
                 >
-                  <SpotlightCard className="flex h-full flex-col justify-between rounded-2xl border-[3px] border-ink/80 bg-panel/80 p-6 sm:p-7">
+                  <SpotlightCard className="h-full rounded-2xl border-[3px] border-ink/80 bg-panel/80 p-6 sm:p-7">
                     <div>
                       <div className="flex items-start justify-between gap-2">
-                        <Icon size={36} className="text-mint" />
+                        <Icon size={36} className="text-mint" aria-hidden="true" />
                         <div className="flex items-center gap-2">
                           {p.stars > 0 && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-ink/10 px-2.5 py-1 text-xs font-bold text-ink">
-                              <Star size={12} /> {p.stars}
+                            <span className="inline-flex items-center gap-1 rounded-full bg-ink/10 px-2.5 py-1 text-xs font-bold tabular-nums text-ink">
+                              <Star size={12} aria-hidden="true" /> {p.stars}
                             </span>
                           )}
                           <span
@@ -383,7 +550,7 @@ export default function App() {
                               p.status === 'Aktif' ? 'bg-mint text-cream' : 'bg-ink/15 text-ink'
                             }`}
                           >
-                            {p.status === 'Aktif' && <BadgeCheck size={14} />}
+                            {p.status === 'Aktif' && <BadgeCheck size={14} aria-hidden="true" />}
                             {p.status}
                           </span>
                         </div>
@@ -401,11 +568,11 @@ export default function App() {
                       </ul>
                     </div>
                     <div className="mt-6 flex flex-wrap gap-3">
-                      <Button as="a" href={p.url} target="_blank" rel="noreferrer" variant="outline">
+                      <Button as="a" href={p.url} target="_blank" rel="noopener noreferrer" variant="outline">
                         {p.hasLiveSite === false ? 'Lihat repo' : 'Buka situs'} <ArrowUpRight size={16} />
                       </Button>
                       {p.repoUrl && p.repoUrl !== p.url && (
-                        <Button as="a" href={p.repoUrl} target="_blank" rel="noreferrer" variant="outline">
+                        <Button as="a" href={p.repoUrl} target="_blank" rel="noopener noreferrer" variant="outline">
                           <FaGithub size={16} /> Repo
                         </Button>
                       )}
@@ -421,7 +588,9 @@ export default function App() {
         <section id="kontak" className="bg-panel/80 px-6 py-24">
           <div className="mx-auto max-w-6xl">
             <Reveal from="left">
-              <h2 className="font-display text-4xl font-extrabold sm:text-5xl">Ayo ngobrol</h2>
+              <h2 className="font-display text-4xl font-extrabold [text-wrap:balance] sm:text-5xl">
+                Ayo ngobrol
+              </h2>
             </Reveal>
             <Reveal from="left" delay={120}>
               <p className="mt-3 max-w-lg text-ink/75">
@@ -429,12 +598,17 @@ export default function App() {
               </p>
             </Reveal>
             <Reveal from="right" delay={200} className="mt-8 flex flex-wrap gap-3">
-              <Button as="a" href="https://github.com/VernsDS" target="_blank" rel="noreferrer" variant="outline">
+              <Button as="a" href="https://github.com/VernsDS" target="_blank" rel="noopener noreferrer" variant="outline">
                 <FaGithub size={18} /> GitHub VernsDS
               </Button>
               <Button onClick={copyDiscord} variant="outline">
-                <FaDiscord size={18} /> {copied ? 'Tersalin: verns.lol' : 'Discord verns.lol'}
-                {copied ? <Check size={16} /> : <Copy size={16} />}
+                <FaDiscord size={18} />{' '}
+                {copyState === 'copied'
+                  ? 'Tersalin: verns.lol'
+                  : copyState === 'error'
+                    ? 'Salin manual: verns.lol'
+                    : 'Discord verns.lol'}
+                {copyState === 'copied' ? <Check size={16} /> : <Copy size={16} />}
               </Button>
               <Button as="a" href="mailto:rafa979710@gmail.com" variant="outline">
                 <Mail size={18} /> Email
@@ -449,8 +623,8 @@ export default function App() {
                 {projects.map((p, k) => {
                   const Icon = renderProjectIcon(p.iconKey)
                   return (
-                    <Reveal key={p.nama} from="right" delay={k * 100}>
-                      <ShimmerButton href={p.url} target="_blank" rel="noreferrer">
+                    <Reveal key={p.id || p.nama} from="right" delay={k * 100}>
+                      <ShimmerButton href={p.url} target="_blank" rel="noopener noreferrer">
                         <Icon size={18} /> {p.nama}
                       </ShimmerButton>
                     </Reveal>

@@ -14,7 +14,7 @@ const LAYERS = [
 ]
 const svgProps = { viewBox: '0 0 1440 900', preserveAspectRatio: 'xMidYMax slice', className: 'absolute inset-0 h-full w-full', 'aria-hidden': true }
 
-export default function ParallaxHero() {
+export default function ParallaxHero({ ready = true, onScrollDown }) {
   const root = useRef(null)
   useEffect(() => {
     gsap.registerPlugin(ScrollTrigger)
@@ -44,7 +44,7 @@ export default function ParallaxHero() {
         {/* 3: judul di tengah */}
         <div data-parallax-layer="3" className="will-change-transform absolute inset-0 flex flex-col items-center justify-center px-4 pb-24 text-center">
           <h1 className="font-display text-[clamp(5.5rem,24vw,17rem)] font-extrabold leading-none text-ink">
-            <SplitText text="Verns" />
+            <SplitText text="Verns" ready={ready} />
           </h1>
           <p className="mt-2 font-display text-xl font-medium text-ink/80 sm:text-2xl">Web portofolio ataa</p>
         </div>
@@ -54,7 +54,14 @@ export default function ParallaxHero() {
         </div>
       </div>
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/4 bg-gradient-to-b from-transparent to-soft" />
-      <ArrowDown className="absolute bottom-6 left-1/2 -translate-x-1/2 animate-bounce text-ink" aria-label="Scroll ke bawah" />
+      <a
+        href="#pengantar"
+        onClick={(e) => onScrollDown?.(e, '#pengantar')}
+        aria-label="Scroll ke bagian pengantar"
+        className="absolute bottom-5 left-1/2 flex h-11 w-11 -translate-x-1/2 items-center justify-center rounded-full text-ink transition-colors hover:bg-ink/10"
+      >
+        <ArrowDown className="animate-bounce" aria-hidden="true" />
+      </a>
     </section>
   )
 }

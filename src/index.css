@@ -5,8 +5,14 @@ html.lenis, html.lenis body { height: auto; }
 .lenis.lenis-smooth { scroll-behavior: auto !important; }
 body { @apply bg-soft overflow-x-hidden text-ink font-sans antialiased; }
 :focus-visible { outline: 3px solid #1e5bd1; outline-offset: 3px; }
-@keyframes shimmer { to { transform: translateX(120%); } }
-@keyframes marquee { to { transform: translateX(-50%); } }
+@keyframes shimmer {
+  0% { transform: translateX(-160%) skewX(-12deg); }
+  100% { transform: translateX(360%) skewX(-12deg); }
+}
+@keyframes marquee {
+  0% { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(-50%, 0, 0); }
+}
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 
 .rv { opacity: 0; transform: translate3d(var(--rx, 0), var(--ry, 32px), 0); transition: opacity .7s ease, transform .8s cubic-bezier(.22, 1, .36, 1); transition-delay: var(--d, 0ms); }
