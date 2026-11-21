@@ -18,6 +18,8 @@ import {
   Code2,
   FolderGit2,
   Star,
+  Sun,
+  Moon,
 } from 'lucide-react'
 import { FaGithub, FaDiscord, FaHtml5, FaCss3Alt, FaReact } from 'react-icons/fa'
 import { SiNextdotjs } from 'react-icons/si'
@@ -28,16 +30,34 @@ import { ProfilePhotoCard, ProfileAvatar } from './components/ProfilePhotoCard'
 import Scene from './components/Scene'
 import Background from './components/Background'
 import Preloader from './components/Preloader'
-import starterPhoto from './assets/images/verns_profile_starter_1795240567497.jpg'
 
 const UMUR = 13
 const MULAI = 2024
 const GITHUB_USERNAME = 'VernsDS'
 const CACHE_KEY = 'verns_github_repos_v2'
+const THEME_KEY = 'verns_theme'
 const CACHE_TTL_MS = 60 * 60 * 1000 // Cache 1 jam
 
-// Ganti starterPhoto dengan '/foto.jpg' setelah kamu taruh foto aslimu di folder public/
-const FOTO_PROFIL = starterPhoto
+// Foto profil asli Verns (tersimpan di public/assets/aistudio/my_picture_29bc2fec.jpg)
+const FOTO_PROFIL = '/assets/aistudio/my_picture_29bc2fec.jpg'
+
+const LEARNING_TIMELINE = [
+  {
+    period: '2024',
+    title: 'Mulai kenal dunia web',
+    summary: 'Awalnya penasaran gimana website dibuat, lalu mulai belajar dasar HTML & CSS secara otodidak.',
+  },
+  {
+    period: '2024 – 2025',
+    title: 'Rilis proyek nyata',
+    summary: 'Mulai membangun situs yang langsung bisa dipakai: toko es krim Raqinaice, situs komik TaaManga, dan web kelas 7E Sevenexcellent.',
+  },
+  {
+    period: '2025 – Sekarang',
+    title: 'React, Next.js & interaksi 3D',
+    summary: 'Eksplor framework modern, animasi scroll GSAP & Lenis, integrasi 3D Spline, serta rutin merilis proyek baru di GitHub.',
+  },
+]
 
 // Katalog proyek unggulan: tetap dipertahankan deskripsi & live URL-nya saat digabung dengan GitHub API
 const CURATED_PROJECTS = [
@@ -219,6 +239,10 @@ function getProjectSpanClass(index, total) {
 }
 
 export default function App() {
+  const [theme, setTheme] = useState(() => {
+    if (typeof document === 'undefined') return 'light'
+    return document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+  })
   const [copyState, setCopyState] = useState('idle') // 'idle' | 'copied' | 'error'
   const [projects, setProjects] = useState(CURATED_PROJECTS)
   const [sceneReady, setSceneReady] = useState(false)
@@ -228,8 +252,28 @@ export default function App() {
   const lenisRef = useRef(null)
   const copyTimerRef = useRef(null)
 
+  const isDark = theme === 'dark'
   const tahun = Math.max(1, new Date().getFullYear() - MULAI)
   const appReady = (sceneReady && projectsReady && fontsReady) || forceReady
+
+  // Sinkronkan kelas .dark, penyimpanan lokal, dan warna status bar browser
+  useEffect(() => {
+    const root = document.documentElement
+    root.classList.toggle('dark', isDark)
+    const themeMeta = document.querySelector('meta[name="theme-color"]')
+    if (themeMeta) {
+      themeMeta.setAttribute('content', isDark ? '#081229' : '#cfe2fb')
+    }
+    try {
+      localStorage.setItem(THEME_KEY, theme)
+    } catch {
+      // Abaikan jika storage diblokir browser
+    }
+  }, [theme, isDark])
+
+  const toggleTheme = useCallback(() => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))
+  }, [])
 
   const handleSceneReady = useCallback(() => {
     setSceneReady(true)
@@ -412,6 +456,16 @@ export default function App() {
   return (
     <>
       <Preloader ready={appReady} />
+      <button
+        type="button"
+        onClick={toggleTheme}
+        aria-pressed={isDark}
+        aria-label={isDark ? 'Ganti ke mode terang' : 'Ganti ke mode gelap'}
+        className="fixed right-4 top-4 z-50 inline-flex h-11 items-center gap-2 rounded-xl border-2 border-ink/25 bg-panel/85 px-3.5 text-sm font-bold text-ink shadow-sm backdrop-blur-md transition-all duration-200 hover:border-mint hover:text-mint active:translate-y-0.5 whitespace-nowrap shrink-0"
+      >
+        {isDark ? <Sun size={17} aria-hidden="true" /> : <Moon size={17} aria-hidden="true" />}
+        <span>{isDark ? 'Terang' : 'Gelap'}</span>
+      </button>
       <main className="overflow-x-clip">
         <Background />
         <ParallaxHero ready={appReady} onScrollDown={scrollToSection} />
@@ -463,57 +517,98 @@ export default function App() {
 
         <Marquee items={['HTML', 'CSS', 'React', 'Next.js', 'Komik', 'Game PC', 'Ice cream']} />
 
-        {/* TENTANG + FOTO PROFIL */}
-        <section id="tentang" className="mx-auto grid max-w-6xl items-start gap-10 px-6 py-24 md:grid-cols-[1fr_1.2fr]">
-          <div>
-            <Reveal from="left">
-              <h2 className="font-display text-4xl font-extrabold [text-wrap:balance] sm:text-5xl">
-                Tentang aku
-              </h2>
-            </Reveal>
-            {/* Kartu foto utama di desktop/tablet (di HP sudah tampil di Pengantar agar tidak dobel berdekatan) */}
-            <Reveal from="left" delay={160} className="mt-8 hidden md:block">
-              <ProfilePhotoCard
-                src={FOTO_PROFIL}
-                className="max-w-[320px]"
-              />
-            </Reveal>
+        {/* TENTANG + FOTO PROFIL + TIMELINE BELAJAR */}
+        <section id="tentang" className="mx-auto max-w-6xl px-6 py-24">
+          <div className="grid items-start gap-10 md:grid-cols-[1fr_1.2fr]">
+            <div>
+              <Reveal from="left">
+                <h2 className="font-display text-4xl font-extrabold [text-wrap:balance] sm:text-5xl">
+                  Tentang aku
+                </h2>
+              </Reveal>
+              {/* Kartu foto utama di desktop/tablet (di HP sudah tampil di Pengantar agar tidak dobel berdekatan) */}
+              <Reveal from="left" delay={160} className="mt-8 hidden md:block">
+                <ProfilePhotoCard
+                  src={FOTO_PROFIL}
+                  className="max-w-[320px]"
+                />
+              </Reveal>
+            </div>
+
+            <div className="space-y-6 text-lg text-ink/80 md:pt-2">
+              <Reveal from="right">
+                <p>
+                  Aku Verns, pelajar SMP di Jakarta. Awalnya cuma penasaran gimana caranya bikin situs, lalu keterusan sampai sekarang punya toko es krim dan situs komik sendiri.
+                </p>
+              </Reveal>
+              <Reveal from="right" delay={150}>
+                <p className="flex flex-wrap items-center gap-x-6 gap-y-2 text-base">
+                  <span className="inline-flex items-center gap-2">
+                    <Gamepad2 className="text-berry" aria-hidden="true" /> Main game di komputer
+                  </span>
+                  <span className="inline-flex items-center gap-2">
+                    <BookOpen className="text-berry" aria-hidden="true" /> Baca komik
+                  </span>
+                </p>
+              </Reveal>
+              <div>
+                <Reveal from="right" delay={300}>
+                  <p className="mb-3 text-base font-bold text-ink">Tech stack yang kupakai</p>
+                </Reveal>
+                <ul className="flex flex-wrap gap-3 will-change-transform">
+                  {stack.map(({ n, i: I }, k) => (
+                    <Reveal
+                      as="li"
+                      key={n}
+                      from="right"
+                      delay={400 + k * 120}
+                      className="inline-flex items-center gap-2 rounded-xl border-2 border-ink/20 bg-panel/50 px-4 py-2 font-medium"
+                    >
+                      <I size={20} className="text-mint" aria-hidden="true" /> {n}
+                    </Reveal>
+                  ))}
+                </ul>
+              </div>
+            </div>
           </div>
 
-          <div className="space-y-6 text-lg text-ink/80 md:pt-2">
-            <Reveal from="right">
-              <p>
-                Aku Verns, pelajar SMP di Jakarta. Awalnya cuma penasaran gimana caranya bikin situs, lalu keterusan sampai sekarang punya toko es krim dan situs komik sendiri.
-              </p>
-            </Reveal>
-            <Reveal from="right" delay={150}>
-              <p className="flex flex-wrap items-center gap-x-6 gap-y-2 text-base">
-                <span className="inline-flex items-center gap-2">
-                  <Gamepad2 className="text-berry" aria-hidden="true" /> Main game di komputer
+          {/* Mini Timeline Perjalanan Belajar (2024 → Sekarang) */}
+          <div className="mt-16 border-t-2 border-ink/15 pt-12">
+            <Reveal from="left">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h3 className="font-display text-2xl font-extrabold text-ink sm:text-3xl">
+                  Perjalanan belajarku
+                </h3>
+                <span className="text-sm font-medium tabular-nums text-ink/60">
+                  {MULAI} — Sekarang
                 </span>
-                <span className="inline-flex items-center gap-2">
-                  <BookOpen className="text-berry" aria-hidden="true" /> Baca komik
-                </span>
-              </p>
+              </div>
             </Reveal>
-            <div>
-              <Reveal from="right" delay={300}>
-                <p className="mb-3 text-base font-bold text-ink">Tech stack yang kupakai</p>
-              </Reveal>
-              <ul className="flex flex-wrap gap-3 will-change-transform">
-                {stack.map(({ n, i: I }, k) => (
-                  <Reveal
-                    as="li"
-                    key={n}
-                    from="right"
-                    delay={400 + k * 120}
-                    className="inline-flex items-center gap-2 rounded-xl border-2 border-ink/20 bg-panel/50 px-4 py-2 font-medium"
-                  >
-                    <I size={20} className="text-mint" aria-hidden="true" /> {n}
-                  </Reveal>
-                ))}
-              </ul>
-            </div>
+
+            <ol className="relative mt-8 grid gap-8 md:grid-cols-3 md:gap-6">
+              {LEARNING_TIMELINE.map((step, idx) => (
+                <Reveal
+                  as="li"
+                  key={step.period}
+                  from="up"
+                  delay={idx * 120}
+                  className="relative flex flex-col"
+                >
+                  <div className="mb-3 flex items-center gap-3">
+                    <span className="font-display text-sm font-extrabold tabular-nums text-mint whitespace-nowrap">
+                      0{idx + 1}. {step.period}
+                    </span>
+                    <span aria-hidden="true" className="h-[2px] flex-1 bg-ink/15" />
+                  </div>
+                  <h4 className="font-display text-xl font-extrabold text-ink">
+                    {step.title}
+                  </h4>
+                  <p className="mt-2 text-base leading-relaxed text-ink/75">
+                    {step.summary}
+                  </p>
+                </Reveal>
+              ))}
+            </ol>
           </div>
         </section>
 

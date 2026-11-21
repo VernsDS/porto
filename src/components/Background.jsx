@@ -23,17 +23,24 @@ export default function Background() {
   }, [videoFailed])
 
   return (
-    <div
-      className="pointer-events-none fixed inset-0 -z-10 bg-soft"
-      aria-hidden="true"
-      style={{
-        backgroundImage:
-          'radial-gradient(40rem 30rem at 10% 8%, rgba(30,91,209,.16), transparent), radial-gradient(42rem 34rem at 95% 70%, rgba(79,143,224,.2), transparent)',
-      }}
-    >
+    <div className="pointer-events-none fixed inset-0 -z-10 bg-soft transition-colors duration-300" aria-hidden="true">
+      <div
+        className="absolute inset-0 transition-opacity duration-300 dark:opacity-0"
+        style={{
+          backgroundImage:
+            'radial-gradient(40rem 30rem at 10% 8%, rgba(30,91,209,.16), transparent), radial-gradient(42rem 34rem at 95% 70%, rgba(79,143,224,.2), transparent)',
+        }}
+      />
+      <div
+        className="absolute inset-0 opacity-0 transition-opacity duration-300 dark:opacity-100"
+        style={{
+          backgroundImage:
+            'radial-gradient(44rem 32rem at 12% 10%, rgba(96,165,250,.15), transparent), radial-gradient(42rem 34rem at 92% 72%, rgba(30,91,209,.24), transparent)',
+        }}
+      />
       {ENABLE_BG_VIDEO && showVideo && !videoFailed && (
         <video
-          className="h-full w-full object-cover opacity-30"
+          className="relative h-full w-full object-cover opacity-30"
           src="/bg.mp4"
           autoPlay
           muted

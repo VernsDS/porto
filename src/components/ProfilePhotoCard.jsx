@@ -8,6 +8,7 @@ export function ProfilePhotoCard({
   name = 'Verns',
   alias = 'taa / ataa',
   meta = 'Jakarta · Web sejak 2024',
+  imgClassName = 'object-[50%_22%]',
   className,
 }) {
   const cardRef = useRef(null)
@@ -57,7 +58,7 @@ export function ProfilePhotoCard({
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       className={cn(
-        'group relative overflow-hidden rounded-2xl border-[3px] border-ink/80 bg-panel/95 p-3 shadow-[6px_6px_0_rgba(12,27,61,0.14)] transition-transform duration-200 ease-out will-change-transform',
+        'group relative overflow-hidden rounded-2xl border-[3px] border-ink/80 bg-panel/95 p-3 shadow-[6px_6px_0_rgba(12,27,61,0.14)] dark:shadow-[6px_6px_0_rgba(0,0,0,0.45)] transition-transform duration-200 ease-out will-change-transform',
         className
       )}
     >
@@ -66,7 +67,7 @@ export function ProfilePhotoCard({
         className="pointer-events-none absolute inset-0 z-10 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
         style={{
           background:
-            'radial-gradient(320px circle at var(--mx, 50%) var(--my, 50%), rgba(30,91,209,0.15), transparent 70%)',
+            'radial-gradient(320px circle at var(--mx, 50%) var(--my, 50%), var(--spotlight-color, rgba(30,91,209,0.15)), transparent 70%)',
         }}
       />
 
@@ -78,7 +79,10 @@ export function ProfilePhotoCard({
             referrerPolicy="no-referrer"
             loading="lazy"
             onError={() => setImgError(true)}
-            className="h-full w-full object-cover object-top transition-transform duration-300 ease-out group-hover:scale-[1.03]"
+            className={cn(
+              'h-full w-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]',
+              imgClassName
+            )}
           />
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-6 text-center">
@@ -99,7 +103,7 @@ export function ProfilePhotoCard({
 }
 
 // Avatar mini untuk section Pengantar (desktop & HP).
-export function ProfileAvatar({ src, alt = 'Verns', className }) {
+export function ProfileAvatar({ src, alt = 'Verns', imgClassName = 'object-[50%_38%] scale-110', className }) {
   const [imgError, setImgError] = useState(false)
 
   useEffect(() => {
@@ -119,7 +123,7 @@ export function ProfileAvatar({ src, alt = 'Verns', className }) {
           alt={alt}
           referrerPolicy="no-referrer"
           onError={() => setImgError(true)}
-          className="h-full w-full object-cover object-top"
+          className={cn('h-full w-full object-cover', imgClassName)}
         />
       ) : (
         <span className="font-display text-xs font-extrabold text-mint" aria-hidden="true">

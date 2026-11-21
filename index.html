@@ -37,6 +37,19 @@
         "sameAs": ["https://github.com/VernsDS"]
       }
     </script>
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('verns_theme');
+          var isDark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (isDark) {
+            document.documentElement.classList.add('dark');
+            var meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) meta.setAttribute('content', '#081229');
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

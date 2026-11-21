@@ -21,7 +21,7 @@ export function SpotlightCard({ children, className, contentClassName }) {
         className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
         style={{
           background:
-            'radial-gradient(380px circle at var(--mx, 50%) var(--my, 50%), rgba(30,91,209,0.16), transparent 70%)',
+            'radial-gradient(380px circle at var(--mx, 50%) var(--my, 50%), var(--spotlight-color, rgba(30,91,209,0.16)), transparent 70%)',
         }}
       />
       <div className={cn('relative flex h-full flex-col justify-between', contentClassName)}>
